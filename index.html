@@ -1,0 +1,126 @@
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><title>حرب الدبابات</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#101a0e;color:#fff;font-family:system-ui,Tahoma,sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#hud{position:fixed;top:8px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;text-shadow:0 2px 4px #000;font-weight:700}
+#hpw{width:48%}#hpb{height:16px;border-radius:9px;background:#0007;border:2px solid #fff4;overflow:hidden}#hpb i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#16a34a,#a3e635)}
+#banner{position:fixed;top:28%;left:0;right:0;text-align:center;font-size:42px;font-weight:900;color:#fde68a;text-shadow:0 0 20px #f97316,0 3px 6px #000;opacity:0;transition:opacity .4s;pointer-events:none}
+.stick{position:fixed;bottom:40px;width:130px;height:130px;border-radius:50%;background:#fff2;border:2px solid #fff5;display:none}.stick i{position:absolute;left:40px;top:40px;width:50px;height:50px;border-radius:50%;background:#fffa}
+#sl{left:26px}#sr{right:26px;background:#ff3b2f33;border-color:#ff8a80aa}
+.lab{position:fixed;bottom:176px;font-size:13px;opacity:.8;text-shadow:0 2px 3px #000;display:none;pointer-events:none}
+.scr{position:fixed;inset:0;background:radial-gradient(#2a3a14ee,#0a1008f5);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:20px}
+.scr h1{font-size:44px;margin:0;color:#fde68a;text-shadow:0 0 24px #f97316}.scr p{margin:0;color:#cbd5e1;max-width:330px;line-height:1.7}
+.big{padding:14px 40px;font-size:22px;font-weight:800;border-radius:16px;border:0;background:linear-gradient(#a3e635,#4d7c0f);color:#102000}
+#bar{width:220px;height:8px;background:#fff2;border-radius:5px;overflow:hidden}#bar i{display:block;height:100%;width:0;background:#a3e635}
+.cards{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}.card{width:30%;min-width:100px;padding:14px 6px;border-radius:14px;background:#1f2e12;border:2px solid #a3e635;font-size:15px;color:#fff}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="hud"><div id="hpw"><div id="hpb"><i></i></div><div id="hpt" style="font-size:13px;margin-top:2px">150 / 150</div></div><div style="text-align:left"><div id="wv">الموجة 1</div><div id="sc">0 نقطة</div></div></div>
+<div id="banner"></div>
+<div class="stick" id="sl"><i></i></div><div class="stick" id="sr"><i></i></div><div class="lab" id="ll" style="left:50px">تحرك</div><div class="lab" id="lr" style="right:56px">صوّب وأطلق</div>
+<div class="scr" id="menu"><h1>حرب الدبابات</h1><p>قد دبابتك بالعصا اليسرى، وصوّب الماسورة بالعصا اليمنى فتنطلق القذائف أثناء التصويب. دمّر دبابات العدو والأطباق الطائرة وواجه الدبابة العملاقة!</p><div id="bar"><i></i></div><button class="big" id="go" disabled>جاري التحميل...</button></div>
+<div class="scr" id="up" style="display:none"><h1 style="font-size:32px">اختر تطويراً</h1><div class="cards" id="cards"></div></div>
+<div class="scr" id="over" style="display:none"><h1 id="ot">دُمّرت الدبابة</h1><p id="os"></p><button class="big" id="again">العب مرة أخرى</button></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {clone as skClone} from 'three/addons/utils/SkeletonUtils.js';
+const $=i=>document.getElementById(i);
+const CDN='https://cdn.jsdelivr.net/gh/Papyszoo/CC0-Public-Domain-Models@main/packs/';
+const SRC={me:['quaternius-animatedtanks','tank2'],t2:['quaternius-animatedtanks','tank2'],t3:['quaternius-animatedtanks','tank3'],t4:['quaternius-animatedtanks','tank4'],tile:['kenney-tower-defense-kit','tile'],rocks:['kenney-tower-defense-kit','detail_rocks'],tree:['kenney-tower-defense-kit','detail_tree'],ufo:['kenney-tower-defense-kit','enemy_ufo_a']};
+const M={};let loaded=0;const keys=Object.keys(SRC);
+const renderer=new THREE.WebGLRenderer({canvas:$('c'),antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.shadowMap.enabled=true;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9ec7e8);scene.fog=new THREE.Fog(0x9ec7e8,45,95);
+const cam=new THREE.PerspectiveCamera(50,1,.1,200);
+function resize(){renderer.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.fov=innerWidth/innerHeight<.8?62:48;cam.updateProjectionMatrix()}resize();addEventListener('resize',resize);
+scene.add(new THREE.HemisphereLight(0xe0f0ff,0x4a5a30,1.1));
+const sun=new THREE.DirectionalLight(0xfff0d0,2.3);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);const sc_=sun.shadow.camera;sc_.left=-28;sc_.right=28;sc_.top=28;sc_.bottom=-28;sc_.far=70;scene.add(sun);scene.add(sun.target);
+const H=24;
+function fit(g,len){const b=new THREE.Box3().setFromObject(g);const s=len/Math.max(b.max.x-b.min.x,b.max.z-b.min.z);g.scale.setScalar(s);const b2=new THREE.Box3().setFromObject(g);const c=b2.getCenter(new THREE.Vector3());g.position.set(-c.x,-b2.min.y,-c.z);g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}})}
+function prop(k,len,rot=0){const g=skClone(M[k].scene);fit(g,len);const w=new THREE.Group(),i=new THREE.Group();i.add(g);i.rotation.y=rot;w.add(i);w.inner=i;return w}
+function tank(k,len,face){const g=skClone(M[k].scene);fit(g,len);const w=new THREE.Group(),i=new THREE.Group();i.add(g);i.rotation.y=face;w.add(i);w.inner=i;
+ // turret pivot
+ const tu=[],names=[];g.traverse(o=>{if(o.name&&/Turret|Gun/.test(o.name)&&o.isMesh)tu.push(o)});
+ const piv=new THREE.Group();g.add(piv);const bb=new THREE.Box3();tu.filter(o=>/Turret/.test(o.name)).forEach(o=>bb.expandByObject(o));const c=bb.getCenter(new THREE.Vector3());g.worldToLocal(c);piv.position.set(c.x,0,c.z);tu.forEach(o=>piv.attach(o));w.piv=piv;return w}
+const ld=new GLTFLoader();
+Promise.all(keys.map(k=>new Promise((res,rej)=>ld.load(CDN+SRC[k][0]+'/models/'+SRC[k][1]+'/'+SRC[k][1]+'.glb',g=>{M[k]=g;$('bar').firstChild.style.width=(++loaded/keys.length*100)+'%';res()},undefined,e=>rej(k))))).then(()=>{build();$('go').disabled=false;$('go').textContent='ابدأ المعركة'}).catch(k=>{$('go').textContent='فشل تحميل: '+k});
+const FACE={me:0,t2:0,t3:0,t4:0};
+const obst=[],enemies=[],shells=[],eshells=[],parts=[],packs=[];let player;
+function build(){
+ const t0=skClone(M.tile.scene);const tb=new THREE.Box3().setFromObject(t0);const ts=Math.max(tb.max.x-tb.min.x,tb.max.z-tb.min.z);const cell=6,sc=cell/ts;
+ for(let x=-H-6;x<=H+6;x+=cell)for(let z=-H-6;z<=H+6;z+=cell){const t=skClone(M.tile.scene);t.scale.setScalar(sc);const b=new THREE.Box3().setFromObject(t);const c=b.getCenter(new THREE.Vector3());t.position.set(x-c.x,-b.max.y,z-c.z);t.traverse(o=>{if(o.isMesh)o.receiveShadow=true});scene.add(t)}
+ for(let i=0;i<46;i++){const a=i/46*Math.PI*2,r=H+3;const isT=i%2==0;const p=prop(isT?'tree':'rocks',isT?5+Math.random()*2:5,Math.random()*6);p.position.set(Math.cos(a)*r*1.0,0,Math.sin(a)*r);scene.add(p)}
+ const spots=[[-9,-6],[8,-9],[-12,8],[10,7],[0,-14],[-3,5],[14,-2],[-15,-4],[4,13]];spots.forEach(([x,z],i)=>{const isT=i%3==0;const p=prop(isT?'tree':'rocks',isT?4.5:4,Math.random()*6);p.position.set(x,0,z);scene.add(p);obst.push({x,z,r:isT?1.1:1.9})});
+ player=tank('me',4,FACE.me);player.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.setRGB(.05,.5,.12)}});scene.add(player);
+}
+const TY={t2:{len:4,hp:38,sp:3.4,dm:12,sc:30,fr:2.6,rng:18,sp_:1},t3:{len:4.2,hp:70,sp:2.6,dm:14,sc:55,fr:2.2,rng:20,sp_:1,n:2},t4:{len:6.2,hp:520,sp:2.2,dm:18,sc:450,fr:1.6,rng:26,sp_:1,n:3,boss:1},ufo:{len:2.6,hp:16,sp:7,dm:12,sc:20,fly:1}};
+const S={state:'menu',wave:0,score:0,kills:0,hp:150,mhp:150,dmg:14,rate:1,spd:6,god:false,fireT:0,inv:0,t:0,flash:0};
+let mx=0,mz=0,ax=0,az=0,heading=0,aim=0;
+function banner(t,ms=1500){const b=$('banner');b.textContent=t;b.style.opacity=1;setTimeout(()=>b.style.opacity=0,ms)}
+function spawnWave(){S.wave++;$('wv').textContent='الموجة '+S.wave;const boss=S.wave%5==0;const n=boss?5:3+S.wave*2;const pool=['t2'];if(S.wave>=2)pool.push('ufo');if(S.wave>=3)pool.push('t3','t2');
+ banner(boss?'الدبابة العملاقة!':'الموجة '+S.wave);const list=[];if(boss)list.push('t4');for(let i=0;i<n;i++)list.push(pool[Math.floor(Math.random()*pool.length)]);S.queue=list;S.spT=0}
+function addEnemy(ty){const d=TY[ty];let m;if(ty=='ufo'){m=prop('ufo',d.len,0)}else m=tank(ty,d.len,FACE[ty]);const a=Math.random()*Math.PI*2,r=H-2;m.position.set(Math.max(-r,Math.min(r,Math.cos(a)*H*1.4)),ty=='ufo'?2.2:0,Math.max(-r,Math.min(r,Math.sin(a)*H*1.4)));scene.add(m);const sc=1+(S.wave-1)*.1;enemies.push({m,ty,d,hp:d.hp*sc,dead:0,cd:1+Math.random()*2,hit:0,ph:Math.random()*6,yaw:0})}
+function puff(p,n=8,col=0xffb040,sp=5){for(let i=0;i<n;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.22+Math.random()*.15,5,4),new THREE.MeshBasicMaterial({color:Math.random()<.4?0x333333:col}));m.position.copy(p);m.position.y=Math.max(.6,p.y);scene.add(m);const a=Math.random()*6.28;parts.push({m,v:new THREE.Vector3(Math.cos(a)*sp*Math.random(),2+Math.random()*4,Math.sin(a)*sp*Math.random()),l:.7})}}
+const sg=new THREE.SphereGeometry(.3,8,6),sm=new THREE.MeshBasicMaterial({color:0xfff07a}),esm=new THREE.MeshBasicMaterial({color:0xff4a3a});
+function shell(from,dir,sp,dm,enemy){const m=new THREE.Mesh(sg,enemy?esm:sm);m.position.copy(from);m.position.y=1.3;scene.add(m);(enemy?eshells:shells).push({m,v:dir.clone().multiplyScalar(sp),dm,l:enemy?2.6:1.5})}
+function hurtE(e,dm){if(e.dead)return;e.hp-=dm;e.hit=.1;puff(e.m.position,5,0xffd27a,4);if(e.hp<=0){e.dead=.01;S.kills++;S.score+=e.d.sc;puff(e.m.position,18,0xff7020,8);if(Math.random()<.35||e.d.boss)dropPack(e.m.position)}}
+function dropPack(p){const m=new THREE.Mesh(new THREE.BoxGeometry(.9,.9,.9),new THREE.MeshStandardMaterial({color:0x22c55e,emissive:0x0a5a20,emissiveIntensity:.8}));m.position.set(p.x,.7,p.z);m.castShadow=true;scene.add(m);packs.push(m)}
+function hurtP(dm){if(S.inv>0||S.god||S.state!='play')return;S.hp-=dm;S.inv=.35;S.flash=.2;puff(player.position,8,0xff6030,5);if(S.hp<=0){S.hp=0;S.state='over';$('over').style.display='flex';$('ot').textContent='دُمّرت الدبابة';$('os').textContent='وصلت الموجة '+S.wave+' ودمّرت '+S.kills+' هدف، ونقاطك '+S.score;hideCtl()}}
+function levelUp(){S.state='up';$('up').style.display='flex';hideCtl();const ALL=[['💥 ضرر القذائف +25%',()=>S.dmg*=1.25],['❤ درع +40 وإصلاح كامل',()=>{S.mhp+=40;S.hp=S.mhp}],['⚙ سرعة +12%',()=>S.spd*=1.12],['⚡ سرعة الإطلاق +25%',()=>S.rate*=1.25]];
+ const pick=ALL.sort(()=>Math.random()-.5).slice(0,3);const c=$('cards');c.innerHTML='';pick.forEach(([t,f])=>{const b=document.createElement('button');b.className='card';b.textContent=t;b.onclick=()=>{f();S.hp=Math.min(S.mhp,S.hp+S.mhp*.25);$('up').style.display='none';S.state='play';showCtl();spawnWave()};c.appendChild(b)})}
+function showCtl(){['sl','sr','ll','lr'].forEach(i=>$(i).style.display='block');setTimeout(()=>{$('ll').style.display=$('lr').style.display='none'},5000)}function hideCtl(){['sl','sr','ll','lr'].forEach(i=>$(i).style.display='none')}
+function start(){for(const e of enemies)scene.remove(e.m);enemies.length=0;for(const b of shells.concat(eshells))scene.remove(b.m);shells.length=0;eshells.length=0;for(const p of packs)scene.remove(p);packs.length=0;Object.assign(S,{wave:0,score:0,kills:0,hp:150,mhp:150,dmg:14,rate:1,spd:6,god:false,fireT:0,inv:0});player.position.set(0,0,0);heading=0;aim=0;$('menu').style.display='none';$('over').style.display='none';S.state='play';showCtl();spawnWave()}
+$('go').onclick=start;$('again').onclick=start;
+const ids={l:null,r:null};
+function setStick(el,e,side){const r=el.getBoundingClientRect();let dx=e.clientX-(r.left+65),dy=e.clientY-(r.top+65);const L=Math.hypot(dx,dy),m=55;if(L>m){dx*=m/L;dy*=m/L}el.firstChild.style.transform=`translate(${dx}px,${dy}px)`;if(side=='l'){mx=dx/m;mz=dy/m}else{ax=dx/m;az=dy/m}}
+addEventListener('pointerdown',e=>{if(S.state!='play')return;if(e.clientX<innerWidth*.5){if(ids.l===null){ids.l=e.pointerId;setStick($('sl'),e,'l')}}else if(ids.r===null){ids.r=e.pointerId;setStick($('sr'),e,'r')}});
+addEventListener('pointermove',e=>{if(e.pointerId===ids.l)setStick($('sl'),e,'l');else if(e.pointerId===ids.r)setStick($('sr'),e,'r')});
+const rel=e=>{if(e.pointerId===ids.l){ids.l=null;mx=mz=0;$('sl').firstChild.style.transform=''}if(e.pointerId===ids.r){ids.r=null;ax=az=0;$('sr').firstChild.style.transform=''}};addEventListener('pointerup',rel);addEventListener('pointercancel',rel);
+const K={};addEventListener('keydown',e=>K[e.code]=1);addEventListener('keyup',e=>K[e.code]=0);
+let lastAim=new THREE.Vector3(0,0,1);
+function pushOut(p,rad){for(const o of obst){const dx=p.x-o.x,dz=p.z-o.z,d=Math.hypot(dx,dz),m=o.r+rad;if(d<m&&d>.001){p.x=o.x+dx/d*m;p.z=o.z+dz/d*m}}}
+function update(dt){S.t+=dt;if(!player||S.state!='play')return;
+ let ix=mx+(K.KeyD?1:0)-(K.KeyA?1:0),iz=mz+(K.KeyS?1:0)-(K.KeyW?1:0);const il=Math.min(1,Math.hypot(ix,iz));
+ S.fireT-=dt;S.inv-=dt;S.flash-=dt;
+ if(il>.1){const ta=Math.atan2(ix,iz);let d=ta-heading;d=Math.atan2(Math.sin(d),Math.cos(d));heading+=d*Math.min(1,dt*7);player.position.x+=Math.sin(heading)*S.spd*il*dt;player.position.z+=Math.cos(heading)*S.spd*il*dt}
+ const lim=H-1.5;player.position.x=Math.max(-lim,Math.min(lim,player.position.x));player.position.z=Math.max(-lim,Math.min(lim,player.position.z));pushOut(player.position,1.4);
+ player.rotation.y=heading;
+ const al=Math.hypot(ax,az);const firing=al>.3;
+ if(firing){const ta=Math.atan2(ax,az);let d=ta-aim;d=Math.atan2(Math.sin(d),Math.cos(d));aim+=d*Math.min(1,dt*14)}else if(il>.1){let d=heading-aim;d=Math.atan2(Math.sin(d),Math.cos(d));aim+=d*Math.min(1,dt*3)}
+ if(player.piv)player.piv.rotation.y=aim-heading;
+ if(firing&&S.fireT<=0){S.fireT=.45/S.rate;const dir=new THREE.Vector3(Math.sin(aim),0,Math.cos(aim));shell(player.position.clone().addScaledVector(dir,2),dir,40,S.dmg,false);puff(player.position.clone().addScaledVector(dir,2.2),3,0xffe080,3)}
+ if(S.queue&&S.queue.length){S.spT-=dt;if(S.spT<=0){addEnemy(S.queue.shift());S.spT=Math.max(.5,1.5-S.wave*.1)}}
+ for(let i=enemies.length-1;i>=0;i--){const e=enemies[i],m=e.m;
+  if(e.dead){e.dead+=dt;m.scale.multiplyScalar(1-dt*2.2);m.position.y-=dt*.8;if(e.dead>.55){scene.remove(m);enemies.splice(i,1)}continue}
+  const d=player.position.clone().sub(m.position);d.y=0;const L=d.length();d.normalize();const want=Math.atan2(d.x,d.z);let da=want-e.yaw;da=Math.atan2(Math.sin(da),Math.cos(da));e.yaw+=da*Math.min(1,dt*(e.d.fly?4:3));
+  const keep=e.d.rng?e.d.rng*.6:0;const mv=L>keep?1:(L<keep*.6?-.5:0);m.position.x+=Math.sin(e.yaw)*e.d.sp*mv*dt;m.position.z+=Math.cos(e.yaw)*e.d.sp*mv*dt;
+  if(!e.d.fly)pushOut(m.position,1.5);
+  for(const o of enemies){if(o===e||o.dead)continue;const dx=m.position.x-o.m.position.x,dz=m.position.z-o.m.position.z,q=Math.hypot(dx,dz);if(q<3&&q>.01){m.position.x+=dx/q*dt*2;m.position.z+=dz/q*dt*2}}
+  m.rotation.y=e.yaw;e.ph+=dt;
+  if(e.d.fly){m.position.y=2.2+Math.sin(e.ph*3)*.4;m.inner.rotation.y+=dt*6;if(L<2.2){hurtP(e.d.dm);e.hp=0;e.dead=.01;S.kills++;puff(m.position,14,0xff7020,7)}}
+  else{if(m.piv)m.piv.rotation.y=0;e.cd-=dt;if(e.cd<=0&&L<e.d.rng){e.cd=e.d.fr;const n=e.d.n||1;for(let k=0;k<n;k++){const a=want+(k-(n-1)/2)*.22;const dr=new THREE.Vector3(Math.sin(a),0,Math.cos(a));shell(m.position.clone().addScaledVector(dr,2),dr,17,e.d.dm,true)}}}
+  e.hit-=dt;m.traverse(o=>{if(o.isMesh){if(!o.userData.mat)o.userData.mat=o.material;if(e.hit>0){if(!o.userData.fm){o.userData.fm=o.userData.mat.clone();o.userData.fm.emissive=new THREE.Color(0xff6633);o.userData.fm.emissiveIntensity=1.2}o.material=o.userData.fm}else o.material=o.userData.mat}});
+ }
+ for(let i=shells.length-1;i>=0;i--){const b=shells[i];b.l-=dt;b.m.position.addScaledVector(b.v,dt);let rm=b.l<=0;
+  if(!rm)for(const o of obst){if(Math.hypot(b.m.position.x-o.x,b.m.position.z-o.z)<o.r){rm=true;break}}
+  if(!rm)for(const e of enemies){if(e.dead)continue;const hr=e.d.len*.42;if(Math.hypot(e.m.position.x-b.m.position.x,e.m.position.z-b.m.position.z)<hr&&(!e.d.fly||true)){hurtE(e,b.dm);rm=true;break}}
+  if(rm){puff(b.m.position,3,0xffd060,3);scene.remove(b.m);shells.splice(i,1)}}
+ for(let i=eshells.length-1;i>=0;i--){const b=eshells[i];b.l-=dt;b.m.position.addScaledVector(b.v,dt);let rm=b.l<=0;
+  if(!rm)for(const o of obst){if(Math.hypot(b.m.position.x-o.x,b.m.position.z-o.z)<o.r){rm=true;break}}
+  if(!rm&&Math.hypot(player.position.x-b.m.position.x,player.position.z-b.m.position.z)<1.7){hurtP(b.dm);rm=true}
+  if(rm){puff(b.m.position,3,0xff6a4a,3);scene.remove(b.m);eshells.splice(i,1)}}
+ for(let i=packs.length-1;i>=0;i--){const p=packs[i];p.rotation.y+=dt*2;if(Math.hypot(p.position.x-player.position.x,p.position.z-player.position.z)<2){S.hp=Math.min(S.mhp,S.hp+35);scene.remove(p);packs.splice(i,1)}}
+ for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.l-=dt;p.v.y-=14*dt;p.m.position.addScaledVector(p.v,dt);p.m.scale.multiplyScalar(1-dt*1.5);if(p.l<=0||p.m.position.y<0){scene.remove(p.m);parts.splice(i,1)}}
+ if(S.queue&&!S.queue.length&&!enemies.length){S.queue=null;S.score+=S.wave*30;if(S.wave>=10){S.state='over';$('over').style.display='flex';$('ot').textContent='انتصرت!';$('os').textContent='دمّرت كل قوات العدو. النقاط: '+S.score;hideCtl()}else{banner('انتصرت في الموجة',1200);setTimeout(()=>{if(S.state=='play')levelUp()},1200)}}
+}
+function hud(){$('hpb').firstChild.style.width=Math.max(0,S.hp/S.mhp*100)+'%';$('hpt').textContent=Math.ceil(S.hp)+' / '+Math.ceil(S.mhp);$('sc').textContent=S.score+' نقطة'}
+let last=performance.now(),qN=0,qS=0,qDone=false;
+function frame(t){const rdt=(t-last)/1000;const dt=Math.min(.05,rdt);last=t;
+ if(!qDone&&S.state=='play'){qN++;qS+=rdt;if(qN==60){qDone=true;if(qS/60>.034){sun.castShadow=false;renderer.shadowMap.enabled=false;renderer.setPixelRatio(1);resize();scene.traverse(o=>{if(o.material)o.material.needsUpdate=true})}}}
+ update(dt);if(player){const tx=player.position.x,tz=player.position.z;cam.position.lerp(new THREE.Vector3(tx*.9,32,tz*.9+20),Math.min(1,dt*5));cam.lookAt(tx*.9,0,tz*.9-1);sun.position.set(tx+12,24,tz+10);sun.target.position.set(tx,0,tz)}
+ scene.background.setHex(S.flash>0?0xd98a7a:0x9ec7e8);hud();renderer.render(scene,cam);requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+window.G={s:S,start,step(n,d=.05){for(let i=0;i<n;i++)update(d)},move(x,z){mx=x;mz=z},aim(x,z){ax=x;az=z},god(){S.god=true},jump(w){S.wave=w-1;S.queue=null;for(const e of enemies)scene.remove(e.m);enemies.length=0;spawnWave()},pick(){const b=document.querySelector('.card');if(b)b.click()},info(){return JSON.stringify({st:S.state,w:S.wave,sc:S.score,k:S.kills,hp:Math.round(S.hp),en:enemies.length,q:S.queue&&S.queue.length})}};
+</script></body></html>
